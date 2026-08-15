@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "cream";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
@@ -9,6 +9,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     "bg-gold-500 text-board-900 hover:bg-gold-400 active:bg-gold-600 disabled:opacity-40",
   ghost:
     "bg-transparent text-board-800 border border-board-700/30 hover:bg-board-700/5 disabled:opacity-40",
+  cream:
+    "bg-washi-100 text-board-800 hover:bg-washi-200 active:bg-washi-300 disabled:opacity-40",
 };
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {

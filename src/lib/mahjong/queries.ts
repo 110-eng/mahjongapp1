@@ -9,7 +9,8 @@ export function isValidEntry(status: EntryStatus): boolean {
   return VALID_ENTRY_STATUSES.includes(status);
 }
 
-export async function getEventDetail(eventId: string) {
+/** Group単位でイベントを取得する。他Groupのデータが絶対に混ざらないようgroupIdで絞り込む。 */
+export async function getEventDetail(groupId: string, eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
@@ -18,6 +19,7 @@ export async function getEventDetail(eventId: string) {
       games: { include: { results: true } },
     },
   });
+  if (!event || event.groupId !== groupId) return null;
   return event;
 }
 
@@ -29,9 +31,9 @@ export function summarizeEntries<T extends { status: EntryStatus }>(entries: T[]
   };
 }
 
-export async function listOpenEvents() {
+export async function listOpenEvents(groupId: string) {
   const events = await prisma.event.findMany({
-    where: { status: "open" },
+    where: { groupId, status: "open" },
     include: { organizer: true, entries: true },
     orderBy: { eventDatetime: "asc" },
   });
@@ -46,9 +48,13 @@ export async function listOpenEvents() {
   });
 }
 
-export async function listMyEvents(userId: string) {
+export async function listMyEvents(userId: string, groupId: string) {
   const entries = await prisma.entry.findMany({
-    where: { userId, status: { in: VALID_ENTRY_STATUSES } },
+    where: {
+      userId,
+      status: { in: VALID_ENTRY_STATUSES },
+      event: { groupId },
+    },
     include: {
       event: { include: { organizer: true, entries: true } },
     },
@@ -66,27 +72,58 @@ export async function listMyEvents(userId: string) {
   });
 }
 
-/** ランキング集計用に全対局結果を取得する(仕様23章) */
-export async function getAllGameResults() {
+/** ランキング集計用にGroup内のconfirmed対局結果のみを取得する(仕様23, 26, 32章) */
+export async function getConfirmedGameResults(groupId: string) {
   const results = await prisma.gameResult.findMany({
+    where: { game: { groupId, status: "confirmed" } },
     include: { user: true, game: true },
   });
   return results.map((r) => ({
     userId: r.userId,
     userName: r.user.name,
-    rankingPoint: r.rankingPoint,
+    rankingPoint: r.totalRankingPoint,
     playedAt: r.game.playedAt,
   }));
 }
 
+/** マイページ向け個人戦績(仕様33章)。confirmedのGameのみを対象に期間集計する。 */
+export async function getPersonalGameStats(
+  groupId: string,
+  userId: string,
+  range: { start: Date; end: Date }
+) {
+  const results = await prisma.gameResult.findMany({
+    where: {
+      userId,
+      game: { groupId, status: "confirmed", playedAt: { gte: range.start, lte: range.end } },
+    },
+  });
+
+  const gamesPlayed = results.length;
+  const totalPoint = results.reduce((sum, r) => sum + r.totalRankingPoint, 0);
+  const firstPlaceCount = results.filter((r) => r.rank === 1).length;
+  const averageRank =
+    gamesPlayed > 0 ? results.reduce((sum, r) => sum + r.rank, 0) / gamesPlayed : null;
+
+  return { gamesPlayed, totalPoint, firstPlaceCount, averageRank };
+}
+
 /**
- * ある1名の参加機会レコメンド用の統計を計算する(仕様14章)。
+ * ある1名の参加機会レコメンド用の統計をGroup単位で計算する(仕様13章)。
  * eventIdを指定した場合、そのイベント自身のエントリーは除外して算出する
  * (これから参加を検討している募集自体をカウントしないため)。
  */
-export async function getParticipantStats(userId: string, excludeEventId?: string) {
+export async function getParticipantStats(
+  userId: string,
+  groupId: string,
+  excludeEventId?: string
+) {
   const entries = await prisma.entry.findMany({
-    where: { userId, ...(excludeEventId ? { eventId: { not: excludeEventId } } : {}) },
+    where: {
+      userId,
+      event: { groupId },
+      ...(excludeEventId ? { eventId: { not: excludeEventId } } : {}),
+    },
   });
 
   const validEntryCount = entries.filter((e) => e.status !== "cancelled").length;

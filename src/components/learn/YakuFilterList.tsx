@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { MahjongTileExample } from "@/components/ui/MahjongTile";
 import { YAKU_LIST, YAKU_CATEGORIES, type YakuCategory } from "@/lib/mahjong/yaku";
 
 export function YakuFilterList() {
@@ -66,6 +67,12 @@ export function YakuFilterList() {
               </Badge>
             </div>
             <p className="text-xs text-ink-600">{y.description}</p>
+            {y.example && (
+              <div className="pt-1">
+                <MahjongTileExample groups={y.example} />
+              </div>
+            )}
+            {y.exampleNote && <p className="text-xs text-ink-400">{y.exampleNote}</p>}
           </div>
         ))}
       </Card>

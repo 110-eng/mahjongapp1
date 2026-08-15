@@ -9,7 +9,7 @@ export function CopyRecruitmentButton({ event }: { event: Event }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    const url = `${window.location.origin}/events/${event.id}`;
+    const url = `${window.location.origin}/g/${event.groupId}/events/${event.id}`;
     const lines = [
       `🀄️ ${event.title}`,
       "",

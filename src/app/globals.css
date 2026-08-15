@@ -54,6 +54,7 @@
   --color-ink-400: var(--color-ink-400);
 
   --font-sans: var(--font-noto-sans-jp);
+  --font-serif: var(--font-noto-serif-jp);
 }
 
 body {

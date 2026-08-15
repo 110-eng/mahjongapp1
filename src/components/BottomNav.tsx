@@ -3,22 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ITEMS = [
-  { href: "/", label: "ホーム", icon: "🏠" },
-  { href: "/learn", label: "役一覧", icon: "📖" },
-  { href: "/ranking", label: "ランキング", icon: "🏆" },
-  { href: "/mypage", label: "マイページ", icon: "👤" },
-] as const;
-
-export function BottomNav() {
+export function BottomNav({ groupId }: { groupId: string }) {
   const pathname = usePathname();
+
+  const items = [
+    { href: `/g/${groupId}`, label: "ホーム", icon: "🏠" },
+    { href: `/g/${groupId}/learn`, label: "役一覧", icon: "📖" },
+    { href: `/g/${groupId}/ranking`, label: "ランキング", icon: "🏆" },
+    { href: `/g/${groupId}/mypage`, label: "マイページ", icon: "👤" },
+  ] as const;
+
+  const homeHref = `/g/${groupId}`;
 
   return (
     <nav className="sticky bottom-0 z-20 border-t border-gold-500/20 bg-washi-100/95 backdrop-blur supports-[backdrop-filter]:bg-washi-100/80">
       <div className="mx-auto flex w-full max-w-xl">
-        {ITEMS.map((item) => {
+        {items.map((item) => {
           const active =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            item.href === homeHref ? pathname === homeHref : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

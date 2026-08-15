@@ -2,7 +2,13 @@
  * 役一覧の静的データ(仕様18〜19章)。
  * 手牌解析やシャンテン数計算などの高度な機能は今回作らず、
  * 「対局中に分からなくなったらすぐ確認できる」範囲に留める。
+ *
+ * example は実際の麻雀牌を模したタイル表示(MahjongTileExample)で描画するため、
+ * 牌コードのグループ配列(TileGroup[])として持つ。
+ * 牌コード: "1m".."9m"(萬子) / "1s".."9s"(索子) / "1p".."9p"(筒子) / 東南西北中發白
  */
+
+import type { TileGroup } from "./tiles";
 
 export type YakuCategory = "1翻" | "2翻" | "3翻以上" | "役満";
 
@@ -13,11 +19,13 @@ export type Yaku = {
   category: YakuCategory;
   openHand: "ok" | "ng";
   description: string;
-  example?: string;
+  example?: TileGroup[];
+  exampleNote?: string;
   featured: boolean;
 };
 
 export const YAKU_LIST: Yaku[] = [
+  // ---- 1翻 ----
   {
     key: "riichi",
     name: "リーチ(立直)",
@@ -26,17 +34,18 @@ export const YAKU_LIST: Yaku[] = [
     openHand: "ng",
     description:
       "テンパイ(あと1枚で完成する形)になったら宣言できる役。宣言後は手牌を変えられません。",
-    example: "例: 二三四 五六七 八八 二三(索子) + あと1枚待ち",
+    example: [["4s", "5s", "6s"], ["1m", "2m", "3m"], ["7p", "8p", "9p"], ["白", "白"], ["2s", "3s"]],
+    exampleNote: "あと1枚(一索・四索)で完成",
     featured: true,
   },
   {
     key: "tanyao",
-    name: "タンヤオ(断么九)",
+    name: "タンヤオ(断幺九)",
     han: "1翻",
     category: "1翻",
     openHand: "ok",
     description: "2〜8の数字の牌だけで手牌を作る役。1・9・字牌を使いません。",
-    example: "例: 二三四 五五五 六七八 二三四 五五",
+    example: [["2m", "3m", "4m"], ["5m", "5m", "5m"], ["3s", "4s", "5s"], ["2p", "3p", "4p"], ["5p", "5p"]],
     featured: true,
   },
   {
@@ -46,8 +55,9 @@ export const YAKU_LIST: Yaku[] = [
     category: "1翻",
     openHand: "ok",
     description:
-      "自分の風・場の風、または白發中(三元牌)のいずれかを3枚集めると成立する役。",
-    example: "例: 中中中 + 残りの4面子と雀頭",
+      "自分の風・場の風、または白發中(三元牌)のいずれかを3枚集めると成立する役。複数揃うと翻数が加算されます。",
+    example: [["中", "中", "中"]],
+    exampleNote: "+ 残り4面子と雀頭",
     featured: true,
   },
   {
@@ -58,7 +68,8 @@ export const YAKU_LIST: Yaku[] = [
     openHand: "ng",
     description:
       "すべて順子(連続する3枚)で作り、雀頭は役牌以外、両面(りゃんめん)待ちで上がる役。",
-    example: "例: 二三四 五六七 八九 (雀頭) + 両面待ち",
+    example: [["1m", "2m", "3m"], ["4m", "5m", "6m"], ["5p", "6p", "7p"], ["3s", "4s", "5s"], ["2p", "2p"]],
+    exampleNote: "+ 両面待ち",
     featured: true,
   },
   {
@@ -68,6 +79,7 @@ export const YAKU_LIST: Yaku[] = [
     category: "1翻",
     openHand: "ng",
     description: "鳴かずに(門前で)、自分でツモって上がる役。",
+    example: [["1m", "2m", "3m"], ["4m", "5m", "6m"], ["7m", "8m", "9m"], ["3s", "3s", "3s"], ["白", "白"]],
     featured: true,
   },
   {
@@ -77,6 +89,72 @@ export const YAKU_LIST: Yaku[] = [
     category: "1翻",
     openHand: "ng",
     description: "リーチ宣言後、1巡以内(他家に鳴かれずに)上がると成立する役。",
+    example: [["4s", "5s", "6s"], ["1m", "2m", "3m"], ["白", "白"], ["2s", "3s"]],
+    exampleNote: "リーチ後1巡以内に和了",
+    featured: false,
+  },
+  {
+    key: "menzen_ippeikou",
+    name: "一盃口",
+    han: "1翻",
+    category: "1翻",
+    openHand: "ng",
+    description: "同じ並びの順子を2組揃える役。門前でのみ成立します。",
+    example: [["1m", "2m", "3m"], ["1m", "2m", "3m"], ["3s", "4s", "5s"], ["2p", "2p", "2p"], ["白", "白"]],
+    featured: false,
+  },
+  {
+    key: "rinshan",
+    name: "嶺上開花",
+    han: "1翻",
+    category: "1翻",
+    openHand: "ok",
+    description: "カン(槓)をした後にドラの位置から引いた牌で上がる役。",
+    example: [["中", "中", "中", "中"]],
+    exampleNote: "槓の直後に引いた牌で和了",
+    featured: false,
+  },
+  {
+    key: "chankan",
+    name: "槍槓",
+    han: "1翻",
+    category: "1翻",
+    openHand: "ok",
+    description: "他家が加槓(すでに鳴いた刻子に4枚目を足す)した牌でロンする役。",
+    example: [["發", "發", "發"]],
+    exampleNote: "他家の加槓をロン",
+    featured: false,
+  },
+  {
+    key: "haitei",
+    name: "海底摸月",
+    han: "1翻",
+    category: "1翻",
+    openHand: "ok",
+    description: "その局の最後の1枚(海底牌)を自分でツモって上がる役。",
+    exampleNote: "山の最後の1枚をツモって和了",
+    featured: false,
+  },
+  {
+    key: "houtei",
+    name: "河底撈魚",
+    han: "1翻",
+    category: "1翻",
+    openHand: "ok",
+    description: "その局最後に捨てられた牌(河底牌)でロンする役。",
+    exampleNote: "最後の捨て牌をロンして和了",
+    featured: false,
+  },
+
+  // ---- 2翻 ----
+  {
+    key: "double_riichi",
+    name: "ダブルリーチ",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ng",
+    description: "配牌直後の最初の自分の番で、鳴きが入らないうちにリーチを宣言する役。",
+    exampleNote: "配牌時点でテンパイ →即リーチ",
     featured: false,
   },
   {
@@ -86,7 +164,19 @@ export const YAKU_LIST: Yaku[] = [
     category: "2翻",
     openHand: "ok",
     description: "同じ並びの順子を萬子・筒子・索子の3種類すべてで揃える役。",
-    example: "例: 二三四(萬子) 二三四(筒子) 二三四(索子)",
+    example: [["2m", "3m", "4m"], ["2p", "3p", "4p"], ["2s", "3s", "4s"]],
+    exampleNote: "+ 他1面子・雀頭",
+    featured: false,
+  },
+  {
+    key: "sanshoku_doukou",
+    name: "三色同刻",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ok",
+    description: "同じ数字の刻子を萬子・筒子・索子の3種類すべてで揃える役。",
+    example: [["5m", "5m", "5m"], ["5p", "5p", "5p"], ["5s", "5s", "5s"]],
+    exampleNote: "+ 他1面子・雀頭",
     featured: false,
   },
   {
@@ -96,7 +186,18 @@ export const YAKU_LIST: Yaku[] = [
     category: "2翻",
     openHand: "ok",
     description: "同じ種類の牌で1〜9をすべて順子で揃える役。",
-    example: "例: 一二三 四五六 七八九(すべて索子)",
+    example: [["1m", "2m", "3m"], ["4m", "5m", "6m"], ["7m", "8m", "9m"]],
+    exampleNote: "+ 他1面子・雀頭",
+    featured: false,
+  },
+  {
+    key: "chanta",
+    name: "チャンタ(混全帯幺九)",
+    han: "2翻(鳴くと1翻)",
+    category: "2翻",
+    openHand: "ok",
+    description: "すべての面子と雀頭に1・9・字牌のいずれかを含める役。",
+    example: [["1m", "2m", "3m"], ["南", "南", "南"], ["7s", "8s", "9s"], ["東", "東", "東"], ["白", "白"]],
     featured: false,
   },
   {
@@ -106,6 +207,18 @@ export const YAKU_LIST: Yaku[] = [
     category: "2翻",
     openHand: "ok",
     description: "刻子(同じ牌3枚)だけで手牌を作る役。順子を使いません。",
+    example: [["1m", "1m", "1m"], ["5m", "5m", "5m"], ["中", "中", "中"], ["白", "白", "白"], ["2s", "2s"]],
+    featured: false,
+  },
+  {
+    key: "sanankou",
+    name: "三暗刻",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ok",
+    description: "鳴かずに揃えた暗刻(手の内で完成した刻子)を3組揃える役。",
+    example: [["1m", "1m", "1m"], ["5m", "5m", "5m"], ["中", "中", "中"]],
+    exampleNote: "(すべて暗刻) + 他1面子・雀頭",
     featured: false,
   },
   {
@@ -115,8 +228,42 @@ export const YAKU_LIST: Yaku[] = [
     category: "2翻",
     openHand: "ng",
     description: "異なる7組のペア(対子)を揃える役。鳴くと成立しません。",
+    example: [["1m", "1m"], ["2m", "2m"], ["3s", "3s"], ["4s", "4s"], ["5p", "5p"], ["6p", "6p"], ["中", "中"]],
     featured: false,
   },
+  {
+    key: "honroutou",
+    name: "混老頭",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ok",
+    description: "1・9の数牌と字牌だけで手牌を作る役。対々和や七対子と複合しやすい役です。",
+    example: [["1m", "1m", "1m"], ["9m", "9m", "9m"], ["東", "東", "東"], ["白", "白", "白"], ["中", "中"]],
+    featured: false,
+  },
+  {
+    key: "shousangen",
+    name: "小三元",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ok",
+    description: "白發中(三元牌)のうち2種類を刻子、残り1種類を雀頭にして揃える役。",
+    example: [["中", "中", "中"], ["發", "發", "發"], ["白", "白"]],
+    exampleNote: "+ 他2面子",
+    featured: false,
+  },
+  {
+    key: "sankantsu",
+    name: "三槓子",
+    han: "2翻",
+    category: "2翻",
+    openHand: "ok",
+    description: "カン(槓)を3回行い、槓子を3組揃える役。",
+    example: [["1m", "1m", "1m", "1m"], ["5m", "5m", "5m", "5m"], ["中", "中", "中", "中"]],
+    featured: false,
+  },
+
+  // ---- 3翻以上 ----
   {
     key: "honitsu",
     name: "混一色(ホンイツ)",
@@ -124,6 +271,27 @@ export const YAKU_LIST: Yaku[] = [
     category: "3翻以上",
     openHand: "ok",
     description: "1種類の数牌と字牌だけで手牌を作る役。",
+    example: [["1m", "2m", "3m"], ["4m", "5m", "6m"], ["東", "東", "東"], ["中", "中", "中"], ["白", "白"]],
+    featured: false,
+  },
+  {
+    key: "junchan",
+    name: "純全帯幺九",
+    han: "3翻(鳴くと2翻)",
+    category: "3翻以上",
+    openHand: "ok",
+    description: "すべての面子と雀頭に1・9のいずれかを含め、字牌は使わない役。",
+    example: [["1m", "2m", "3m"], ["7m", "8m", "9m"], ["7s", "8s", "9s"], ["1p", "2p", "3p"], ["9p", "9p"]],
+    featured: false,
+  },
+  {
+    key: "ryanpeikou",
+    name: "二盃口",
+    han: "3翻",
+    category: "3翻以上",
+    openHand: "ng",
+    description: "一盃口(同じ並びの順子2組)を2セット揃える役。門前でのみ成立します。",
+    example: [["1m", "2m", "3m"], ["1m", "2m", "3m"], ["4s", "5s", "6s"], ["4s", "5s", "6s"], ["白", "白"]],
     featured: false,
   },
   {
@@ -133,8 +301,11 @@ export const YAKU_LIST: Yaku[] = [
     category: "3翻以上",
     openHand: "ok",
     description: "1種類の数牌だけで手牌を作る役。字牌も使いません。",
+    example: [["1m", "2m", "3m"], ["4m", "5m", "6m"], ["7m", "8m", "9m"], ["2m", "2m", "2m"], ["5m", "5m"]],
     featured: false,
   },
+
+  // ---- 役満 ----
   {
     key: "kokushi",
     name: "国士無双",
@@ -142,6 +313,8 @@ export const YAKU_LIST: Yaku[] = [
     category: "役満",
     openHand: "ng",
     description: "1・9牌と全種類の字牌を1枚ずつ+そのうち1種類をもう1枚揃える役。",
+    example: [["1m", "9m", "1s", "9s", "1p", "9p", "東", "南", "西", "北", "中", "發", "白"]],
+    exampleNote: "+ いずれか1枚",
     featured: false,
   },
   {
@@ -151,6 +324,7 @@ export const YAKU_LIST: Yaku[] = [
     category: "役満",
     openHand: "ng",
     description: "鳴かずに刻子(同じ牌3枚)を4組揃える役。",
+    example: [["1m", "1m", "1m"], ["5m", "5m", "5m"], ["中", "中", "中"], ["白", "白", "白"], ["2s", "2s"]],
     featured: false,
   },
   {
@@ -160,6 +334,106 @@ export const YAKU_LIST: Yaku[] = [
     category: "役満",
     openHand: "ok",
     description: "白發中(三元牌)すべてを刻子で揃える役。",
+    example: [["中", "中", "中"], ["發", "發", "發"], ["白", "白", "白"]],
+    exampleNote: "+ 他1面子・雀頭",
+    featured: false,
+  },
+  {
+    key: "shousuushii",
+    name: "小四喜",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "東南西北のうち3種類を刻子、残り1種類を雀頭にして揃える役。",
+    example: [["東", "東", "東"], ["南", "南", "南"], ["西", "西", "西"], ["北", "北"]],
+    exampleNote: "+ 他1面子",
+    featured: false,
+  },
+  {
+    key: "daisuushii",
+    name: "大四喜",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "東南西北すべてを刻子で揃える役。",
+    example: [["東", "東", "東"], ["南", "南", "南"], ["西", "西", "西"], ["北", "北", "北"]],
+    exampleNote: "+ 雀頭",
+    featured: false,
+  },
+  {
+    key: "tsuuiisou",
+    name: "字一色",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "字牌だけで手牌を作る役。",
+    example: [["東", "東", "東"], ["南", "南", "南"], ["中", "中", "中"], ["白", "白", "白"], ["發", "發"]],
+    featured: false,
+  },
+  {
+    key: "ryuuiisou",
+    name: "緑一色",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "索子の2・3・4・6・8と發だけで手牌を作る役。牌がすべて緑色になります。",
+    example: [["2s", "2s", "2s"], ["3s", "3s", "3s"], ["4s", "4s", "4s"], ["6s", "6s", "6s"], ["發", "發"]],
+    featured: false,
+  },
+  {
+    key: "chinroutou",
+    name: "清老頭",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "1・9の数牌だけで手牌を作る役。字牌は使いません。",
+    example: [["1m", "1m", "1m"], ["9m", "9m", "9m"], ["1p", "1p", "1p"], ["9s", "9s", "9s"], ["1s", "1s"]],
+    featured: false,
+  },
+  {
+    key: "chuuren_poutou",
+    name: "九蓮宝燈",
+    han: "役満",
+    category: "役満",
+    openHand: "ng",
+    description: "同じ種類の数牌で1112345678999の形を揃える役。門前でのみ成立します。",
+    example: [["1m", "1m", "1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "9m", "9m"]],
+    exampleNote: "+ 同色1枚",
+    featured: false,
+  },
+  {
+    key: "suukantsu",
+    name: "四槓子",
+    han: "役満",
+    category: "役満",
+    openHand: "ok",
+    description: "カン(槓)を4回行い、槓子を4組揃える役。",
+    example: [
+      ["1m", "1m", "1m", "1m"],
+      ["5m", "5m", "5m", "5m"],
+      ["中", "中", "中", "中"],
+      ["白", "白", "白", "白"],
+    ],
+    featured: false,
+  },
+  {
+    key: "tenhou",
+    name: "天和",
+    han: "役満",
+    category: "役満",
+    openHand: "ng",
+    description: "親が配牌の時点で和了の形になっている役。",
+    exampleNote: "配牌13枚がそのまま和了形",
+    featured: false,
+  },
+  {
+    key: "chiihou",
+    name: "地和",
+    han: "役満",
+    category: "役満",
+    openHand: "ng",
+    description: "子が最初の自分の番で、鳴きが入らないうちにツモ和了する役。",
+    exampleNote: "第1巡の自摸で和了形が完成",
     featured: false,
   },
 ];

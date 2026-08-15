@@ -48,7 +48,7 @@ export function computeTableFormation(
 
   const tiles: Tile[] = Array.from({ length: capacity }, (_, i) => ({
     filled: i < filledCount,
-    label: i < filledCount ? TILE_SEQUENCE[i % 4] : "□",
+    label: i < filledCount ? TILE_SEQUENCE[i % 4] : "○",
   }));
 
   let remainderToNextTable: number | null = null;

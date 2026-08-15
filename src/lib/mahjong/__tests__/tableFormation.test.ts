@@ -57,13 +57,13 @@ describe("computeTableFormation", () => {
       "北",
       "東",
       "南",
-      "□",
-      "□",
+      "○",
+      "○",
     ]);
   });
 
   it("牌配列: 3/4は東南西□", () => {
     const r = computeTableFormation(3, 1);
-    expect(r.tiles.map((t) => t.label)).toEqual(["東", "南", "西", "□"]);
+    expect(r.tiles.map((t) => t.label)).toEqual(["東", "南", "西", "○"]);
   });
 });

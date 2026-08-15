@@ -64,7 +64,8 @@ export function calculateRanking(
     rank: index + 1,
     userId: entry.userId,
     userName: entry.userName,
-    totalPoint: entry.totalPoint,
+    // 浮動小数点の累積誤差を避けるため小数第1位に丸める
+    totalPoint: Math.round(entry.totalPoint * 10) / 10,
     gamesPlayed: entry.gamesPlayed,
   }));
 }

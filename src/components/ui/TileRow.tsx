@@ -9,8 +9,8 @@ export function TileRow({ tiles }: { tiles: Tile[] }) {
           aria-hidden
           className={
             tile.filled
-              ? "flex h-9 w-7 items-center justify-center rounded-md border border-gold-600 bg-gradient-to-b from-washi-100 to-washi-200 text-base font-bold text-board-800 shadow-sm"
-              : "flex h-9 w-7 items-center justify-center rounded-md border border-dashed border-ink-400/40 bg-transparent text-base text-ink-400"
+              ? "flex h-10 w-8 items-center justify-center rounded-md border border-gold-500/50 bg-washi-100 text-base font-bold text-board-800 shadow-[0_1px_2px_rgba(13,43,34,0.15)]"
+              : "flex h-10 w-8 items-center justify-center rounded-md border border-ink-400/25 bg-washi-200/60 text-sm text-ink-400/60"
           }
         >
           {tile.label}

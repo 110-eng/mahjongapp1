@@ -1,5 +1,5 @@
 // あつまれ麻雀部 データモデル
-// 参照: 仕様書 33章「データモデル案」
+// Account → Group → JOIN → PLAY & LEARN → RANKING
 
 generator client {
   provider = "prisma-client"
@@ -17,17 +17,106 @@ enum ExperienceLevel {
 }
 
 model User {
-  id               String          @id @default(cuid())
-  name             String
-  experienceLevel  ExperienceLevel @default(beginner) @map("experience_level")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
+  id              String          @id @default(cuid())
+  name            String
+  email           String?         @unique
+  avatarUrl       String?         @map("avatar_url")
+  experienceLevel ExperienceLevel @default(beginner) @map("experience_level")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  organizedEvents  Event[]         @relation("OrganizedEvents")
-  entries          Entry[]
-  gameResults      GameResult[]
+  memberships     GroupMembership[]
+  ownedGroups     Group[]           @relation("OwnedGroups")
+  organizedEvents Event[]           @relation("OrganizedEvents")
+  entries         Entry[]
+  createdGames    Game[]            @relation("CreatedGames")
+  gameResults     GameResult[]
 
   @@map("users")
+}
+
+enum MembershipRole {
+  owner
+  member
+}
+
+model Group {
+  id               String   @id @default(cuid())
+  name             String
+  imageUrl         String?  @map("image_url")
+  ownerUserId      String   @map("owner_user_id")
+  /// シーズン開始月(1-12)。9月開始をアプリ全体にハードコードしないための設定値。
+  seasonStartMonth Int      @default(9) @map("season_start_month")
+  rankingEnabled   Boolean  @default(true) @map("ranking_enabled")
+  /// 招待リンク用トークン。Ownerが再発行(ローテーション)可能。
+  inviteToken      String   @unique @default(cuid())
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  owner       User               @relation("OwnedGroups", fields: [ownerUserId], references: [id])
+  memberships GroupMembership[]
+  events      Event[]
+  games       Game[]
+  rule        GroupRule?
+
+  @@map("groups")
+}
+
+model GroupMembership {
+  id       String         @id @default(cuid())
+  groupId  String         @map("group_id")
+  userId   String         @map("user_id")
+  role     MembershipRole @default(member)
+  joinedAt DateTime       @default(now()) @map("joined_at")
+
+  group Group @relation(fields: [groupId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@map("group_memberships")
+}
+
+/**
+ * Group単位の麻雀ルール設定。TimewitchやGroup毎の正式ルールは不明なため、
+ * Ownerが設定できる構造にとどめ、値を勝手に確定しない(仕様16, 50章)。
+ */
+model GroupRule {
+  id      String @id @default(cuid())
+  groupId String @unique @map("group_id")
+
+  startingPoints Int @default(25000) @map("starting_points")
+  returnPoints   Int @default(30000) @map("return_points")
+
+  umaFirst  Int @default(20) @map("uma_first")
+  umaSecond Int @default(10) @map("uma_second")
+  umaThird  Int @default(-10) @map("uma_third")
+  umaFourth Int @default(-20) @map("uma_fourth")
+
+  okaEnabled Boolean @default(true) @map("oka_enabled")
+
+  chipEnabled Boolean @default(false) @map("chip_enabled")
+  chipValue   Int     @default(100) @map("chip_value")
+
+  redDoraChipEnabled Boolean @default(false) @map("red_dora_chip_enabled")
+  ippatsuChipEnabled Boolean @default(false) @map("ippatsu_chip_enabled")
+  uraDoraChipEnabled Boolean @default(false) @map("ura_dora_chip_enabled")
+
+  bustPenaltyEnabled Boolean @default(false) @map("bust_penalty_enabled")
+  bustPenaltyValue   Int     @default(0) @map("bust_penalty_value")
+
+  yakitoriEnabled Boolean @default(false) @map("yakitori_enabled")
+
+  /// "round" | "floor" | "ceil" (素点(finalScore-returnPoints)/1000の端数処理)
+  roundingRule String @default("round") @map("rounding_rule")
+  /// "seat_order" | "shared_rank" (同点時の順位決定方式)
+  tieRule      String @default("seat_order") @map("tie_rule")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  group Group @relation(fields: [groupId], references: [id])
+
+  @@map("group_rules")
 }
 
 enum EventStatus {
@@ -39,6 +128,7 @@ enum EventStatus {
 
 model Event {
   id               String      @id @default(cuid())
+  groupId          String      @map("group_id")
   title            String
   organizerUserId  String      @map("organizer_user_id")
   eventDatetime    DateTime    @map("event_datetime")
@@ -50,9 +140,10 @@ model Event {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  organizer        User        @relation("OrganizedEvents", fields: [organizerUserId], references: [id])
-  entries          Entry[]
-  games            Game[]
+  group     Group   @relation(fields: [groupId], references: [id])
+  organizer User    @relation("OrganizedEvents", fields: [organizerUserId], references: [id])
+  entries   Entry[]
+  games     Game[]
 
   @@map("events")
 }
@@ -66,47 +157,78 @@ enum EntryStatus {
 }
 
 model Entry {
-  id           String      @id @default(cuid())
-  eventId      String      @map("event_id")
-  userId       String      @map("user_id")
-  status       EntryStatus @default(entered)
-  enteredAt    DateTime    @default(now()) @map("entered_at")
-  cancelledAt  DateTime?   @map("cancelled_at")
-  selectedAt   DateTime?   @map("selected_at")
-  playedAt     DateTime?   @map("played_at")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id          String      @id @default(cuid())
+  eventId     String      @map("event_id")
+  userId      String      @map("user_id")
+  status      EntryStatus @default(entered)
+  enteredAt   DateTime    @default(now()) @map("entered_at")
+  cancelledAt DateTime?   @map("cancelled_at")
+  selectedAt  DateTime?   @map("selected_at")
+  playedAt    DateTime?   @map("played_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  event        Event       @relation(fields: [eventId], references: [id])
-  user         User        @relation(fields: [userId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
 
   @@unique([eventId, userId])
   @@map("entries")
 }
 
-model Game {
-  id        String       @id @default(cuid())
-  eventId   String       @map("event_id")
-  playedAt  DateTime     @default(now()) @map("played_at")
-  createdAt DateTime     @default(now()) @map("created_at")
+enum GameStatus {
+  draft
+  confirmed
+  void
+}
 
-  event     Event        @relation(fields: [eventId], references: [id])
+/**
+ * 1半荘の対局。Event参加者とGame参加者は別概念であり、
+ * eventIdはnullable(募集を経由しない対局も将来登録可能にするため)。
+ */
+model Game {
+  id              String     @id @default(cuid())
+  groupId         String     @map("group_id")
+  eventId         String?    @map("event_id")
+  playedAt        DateTime   @default(now()) @map("played_at")
+  /// Game作成時点のGroupRuleのコピー。後でGroupRuleが変わっても過去Gameの結果は変化しない。
+  ruleSnapshot    String     @map("rule_snapshot")
+  status          GameStatus @default(draft)
+  createdByUserId String     @map("created_by_user_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  group     Group        @relation(fields: [groupId], references: [id])
+  event     Event?       @relation(fields: [eventId], references: [id])
+  createdBy User         @relation("CreatedGames", fields: [createdByUserId], references: [id])
   results   GameResult[]
 
   @@map("games")
 }
 
+/**
+ * 対局結果。totalだけでなく内訳(素点/ウマ/オカ/チップ/ペナルティ)を保持し、
+ * なぜその結果になったかを後から説明できるようにする(仕様23章)。
+ */
 model GameResult {
-  id             String   @id @default(cuid())
-  gameId         String   @map("game_id")
-  userId         String   @map("user_id")
-  rank           Int
-  score          Int
-  rankingPoint   Float    @map("ranking_point")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  gameId             String   @map("game_id")
+  userId             String   @map("user_id")
+  seatOrder          Int      @map("seat_order")
+  finalScore         Int      @map("final_score")
+  rank               Int
+  rawScorePoint       Float    @map("raw_score_point")
+  umaPoint           Float    @map("uma_point")
+  okaPoint           Float    @map("oka_point")
+  chipCount          Int      @default(0) @map("chip_count")
+  chipPoint          Float    @default(0) @map("chip_point")
+  penaltyPoint       Float    @default(0) @map("penalty_point")
+  totalRankingPoint  Float    @map("total_ranking_point")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  game           Game     @relation(fields: [gameId], references: [id])
-  user           User     @relation(fields: [userId], references: [id])
+  game Game @relation(fields: [gameId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
+  @@unique([gameId, userId])
   @@map("game_results")
 }

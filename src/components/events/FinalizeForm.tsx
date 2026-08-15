@@ -2,18 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { finalizeParticipants } from "@/app/(main)/events/[id]/actions";
+import { finalizeParticipants } from "@/app/g/[groupId]/events/[id]/actions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import type { RecommendationResult } from "@/lib/mahjong/recommendation";
 
 export function FinalizeForm({
+  groupId,
   eventId,
   neededCount,
   recommended,
   others,
 }: {
+  groupId: string;
   eventId: string;
   neededCount: number;
   recommended: RecommendationResult[];
@@ -81,8 +83,8 @@ export function FinalizeForm({
         disabled={isPending}
         onClick={() =>
           startTransition(async () => {
-            await finalizeParticipants(eventId, Array.from(selected));
-            router.push(`/events/${eventId}`);
+            await finalizeParticipants(groupId, eventId, Array.from(selected));
+            router.push(`/g/${groupId}/events/${eventId}`);
           })
         }
       >

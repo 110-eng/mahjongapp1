@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { MahjongTileExample } from "@/components/ui/MahjongTile";
 import type { Yaku } from "@/lib/mahjong/yaku";
 
 export function YakuCard({ yaku }: { yaku: Yaku }) {
@@ -13,8 +14,11 @@ export function YakuCard({ yaku }: { yaku: Yaku }) {
         </Badge>
       </div>
       <p className="text-sm text-ink-600">{yaku.description}</p>
-      {yaku.example && (
-        <p className="rounded-lg bg-washi-200 px-3 py-2 text-xs text-ink-600">{yaku.example}</p>
+      {(yaku.example || yaku.exampleNote) && (
+        <div className="space-y-1.5 rounded-lg bg-washi-200 px-3 py-2.5">
+          {yaku.example && <MahjongTileExample groups={yaku.example} />}
+          {yaku.exampleNote && <p className="text-xs text-ink-600">{yaku.exampleNote}</p>}
+        </div>
       )}
     </Card>
   );

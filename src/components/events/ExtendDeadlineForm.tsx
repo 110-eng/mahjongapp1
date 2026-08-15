@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { extendDeadline } from "@/app/(main)/events/[id]/actions";
+import { extendDeadline } from "@/app/g/[groupId]/events/[id]/actions";
 import { Button } from "@/components/ui/Button";
 
-export function ExtendDeadlineForm({ eventId }: { eventId: string }) {
+export function ExtendDeadlineForm({ groupId, eventId }: { groupId: string; eventId: string }) {
   const [value, setValue] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -25,8 +25,8 @@ export function ExtendDeadlineForm({ eventId }: { eventId: string }) {
         disabled={!value || isPending}
         onClick={() =>
           startTransition(async () => {
-            await extendDeadline(eventId, value);
-            router.push(`/events/${eventId}`);
+            await extendDeadline(groupId, eventId, value);
+            router.push(`/g/${groupId}/events/${eventId}`);
           })
         }
       >

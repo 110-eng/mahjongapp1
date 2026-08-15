@@ -1,14 +1,16 @@
 "use client";
 
 import { useTransition } from "react";
-import { enterEvent, cancelEntry } from "@/app/(main)/events/[id]/actions";
+import { enterEvent, cancelEntry } from "@/app/g/[groupId]/events/[id]/actions";
 import { Button } from "@/components/ui/Button";
 
 export function EntryActionButton({
+  groupId,
   eventId,
   mode,
   disabled,
 }: {
+  groupId: string;
   eventId: string;
   mode: "enter" | "cancel";
   disabled?: boolean;
@@ -21,7 +23,7 @@ export function EntryActionButton({
         variant="secondary"
         className="w-full"
         disabled={disabled || isPending}
-        onClick={() => startTransition(() => enterEvent(eventId))}
+        onClick={() => startTransition(() => enterEvent(groupId, eventId))}
       >
         {isPending ? "処理中..." : "参加したい"}
       </Button>
@@ -33,7 +35,7 @@ export function EntryActionButton({
       variant="ghost"
       className="w-full"
       disabled={disabled || isPending}
-      onClick={() => startTransition(() => cancelEntry(eventId))}
+      onClick={() => startTransition(() => cancelEntry(groupId, eventId))}
     >
       {disabled ? "対局済みです" : isPending ? "処理中..." : "参加をキャンセルする"}
     </Button>
