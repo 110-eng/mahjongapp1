@@ -1,0 +1,112 @@
+// あつまれ麻雀部 データモデル
+// 参照: 仕様書 33章「データモデル案」
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum ExperienceLevel {
+  inexperienced // 未経験
+  beginner // 初心者
+  experienced // 経験者
+}
+
+model User {
+  id               String          @id @default(cuid())
+  name             String
+  experienceLevel  ExperienceLevel @default(beginner) @map("experience_level")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  organizedEvents  Event[]         @relation("OrganizedEvents")
+  entries          Entry[]
+  gameResults      GameResult[]
+
+  @@map("users")
+}
+
+enum EventStatus {
+  open // 募集中
+  closed // 締切済み(募集者の確定待ち)
+  finalized // 参加者確定済み
+  completed // 対局完了
+}
+
+model Event {
+  id               String      @id @default(cuid())
+  title            String
+  organizerUserId  String      @map("organizer_user_id")
+  eventDatetime    DateTime    @map("event_datetime")
+  entryDeadline    DateTime    @map("entry_deadline")
+  maxTables        Int         @map("max_tables")
+  beginnerFriendly Boolean     @default(false) @map("beginner_friendly")
+  note             String?
+  status           EventStatus @default(open)
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  organizer        User        @relation("OrganizedEvents", fields: [organizerUserId], references: [id])
+  entries          Entry[]
+  games            Game[]
+
+  @@map("events")
+}
+
+enum EntryStatus {
+  entered // 参加希望
+  cancelled // 本人キャンセル
+  selected // 参加者として選定済み
+  not_selected // 参加希望したが選ばれなかった
+  played // 実際に対局した
+}
+
+model Entry {
+  id           String      @id @default(cuid())
+  eventId      String      @map("event_id")
+  userId       String      @map("user_id")
+  status       EntryStatus @default(entered)
+  enteredAt    DateTime    @default(now()) @map("entered_at")
+  cancelledAt  DateTime?   @map("cancelled_at")
+  selectedAt   DateTime?   @map("selected_at")
+  playedAt     DateTime?   @map("played_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  event        Event       @relation(fields: [eventId], references: [id])
+  user         User        @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+  @@map("entries")
+}
+
+model Game {
+  id        String       @id @default(cuid())
+  eventId   String       @map("event_id")
+  playedAt  DateTime     @default(now()) @map("played_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  event     Event        @relation(fields: [eventId], references: [id])
+  results   GameResult[]
+
+  @@map("games")
+}
+
+model GameResult {
+  id             String   @id @default(cuid())
+  gameId         String   @map("game_id")
+  userId         String   @map("user_id")
+  rank           Int
+  score          Int
+  rankingPoint   Float    @map("ranking_point")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  game           Game     @relation(fields: [gameId], references: [id])
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@map("game_results")
+}

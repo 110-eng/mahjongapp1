@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  /* 深い雀卓グリーン */
+  --color-board-900: #0d2b22;
+  --color-board-800: #123a2d;
+  --color-board-700: #184a39;
+  --color-board-600: #1f5c47;
+
+  /* 和紙風クリーム */
+  --color-washi-100: #fdfbf4;
+  --color-washi-200: #faf4e6;
+  --color-washi-300: #f3ead3;
+
+  /* アンティークゴールド */
+  --color-gold-400: #d9b969;
+  --color-gold-500: #c6a04a;
+  --color-gold-600: #a6822f;
+
+  /* 成立・注目用の赤 */
+  --color-red-500: #b3413a;
+  --color-red-600: #963129;
+
+  --color-ink-900: #24211c;
+  --color-ink-600: #57534a;
+  --color-ink-400: #8a8478;
+
+  --background: var(--color-washi-100);
+  --foreground: var(--color-ink-900);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-board-900: var(--color-board-900);
+  --color-board-800: var(--color-board-800);
+  --color-board-700: var(--color-board-700);
+  --color-board-600: var(--color-board-600);
+
+  --color-washi-100: var(--color-washi-100);
+  --color-washi-200: var(--color-washi-200);
+  --color-washi-300: var(--color-washi-300);
+
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+
+  --color-red-500: var(--color-red-500);
+  --color-red-600: var(--color-red-600);
+
+  --color-ink-900: var(--color-ink-900);
+  --color-ink-600: var(--color-ink-600);
+  --color-ink-400: var(--color-ink-400);
+
+  --font-sans: var(--font-noto-sans-jp);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
