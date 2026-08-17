@@ -1,4 +1,4 @@
-// あつまれ麻雀部 データモデル
+// 聴牌 データモデル
 // Account → Group → JOIN → PLAY & LEARN → RANKING
 
 generator client {
@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum ExperienceLevel {
@@ -19,18 +19,25 @@ enum ExperienceLevel {
 model User {
   id              String          @id @default(cuid())
   name            String
+  /// ログインに使うメールアドレス。ゲストユーザー(isGuest=true)はnullのままでよい。
   email           String?         @unique
   avatarUrl       String?         @map("avatar_url")
+  /// ログインパスワードのハッシュ。ゲストユーザー(isGuest=true)はnullのままでよい。
+  passwordHash    String?         @map("password_hash")
   experienceLevel ExperienceLevel @default(beginner) @map("experience_level")
+  /// 対局記録にその場限りで追加されるゲスト参加者。ログイン不可・ランキング集計対象外。
+  isGuest         Boolean         @default(false) @map("is_guest")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  memberships     GroupMembership[]
-  ownedGroups     Group[]           @relation("OwnedGroups")
-  organizedEvents Event[]           @relation("OrganizedEvents")
-  entries         Entry[]
-  createdGames    Game[]            @relation("CreatedGames")
-  gameResults     GameResult[]
+  memberships      GroupMembership[]
+  ownedGroups      Group[]           @relation("OwnedGroups")
+  organizedEvents  Event[]           @relation("OrganizedEvents")
+  entries          Entry[]
+  createdGames     Game[]            @relation("CreatedGames")
+  gameResults      GameResult[]
+  createdTables    Table[]           @relation("CreatedTables")
+  tableMemberships TableMember[]     @relation("TableMemberships")
 
   @@map("users")
 }
@@ -57,6 +64,7 @@ model Group {
   memberships GroupMembership[]
   events      Event[]
   games       Game[]
+  tables      Table[]
   rule        GroupRule?
 
   @@map("groups")
@@ -85,7 +93,6 @@ model GroupRule {
   groupId String @unique @map("group_id")
 
   startingPoints Int @default(25000) @map("starting_points")
-  returnPoints   Int @default(30000) @map("return_points")
 
   umaFirst  Int @default(20) @map("uma_first")
   umaSecond Int @default(10) @map("uma_second")
@@ -93,9 +100,11 @@ model GroupRule {
   umaFourth Int @default(-20) @map("uma_fourth")
 
   okaEnabled Boolean @default(true) @map("oka_enabled")
+  /// 1位に加算される点数(素点換算前, 例: 5000点)。okaEnabled=falseの場合は無視される。
+  okaPoints  Int     @default(5000) @map("oka_points")
 
   chipEnabled Boolean @default(false) @map("chip_enabled")
-  chipValue   Int     @default(100) @map("chip_value")
+  chipValue   Int     @default(1000) @map("chip_value")
 
   redDoraChipEnabled Boolean @default(false) @map("red_dora_chip_enabled")
   ippatsuChipEnabled Boolean @default(false) @map("ippatsu_chip_enabled")
@@ -106,10 +115,12 @@ model GroupRule {
 
   yakitoriEnabled Boolean @default(false) @map("yakitori_enabled")
 
-  /// "round" | "floor" | "ceil" (素点(finalScore-returnPoints)/1000の端数処理)
-  roundingRule String @default("round") @map("rounding_rule")
+  /// "asis"(そのまま/小数点第一位) | "gosha_rokunyu"(五捨六入) 素点計算の端数処理
+  roundingRule String @default("asis") @map("rounding_rule")
   /// "seat_order" | "shared_rank" (同点時の順位決定方式)
   tieRule      String @default("seat_order") @map("tie_rule")
+  /// "all_members"(参加者は誰でも編集可能) | "owner_only"(管理者のみ編集可能)
+  resultEntryPermission String @default("all_members") @map("result_entry_permission")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -189,6 +200,9 @@ model Game {
   id              String     @id @default(cuid())
   groupId         String     @map("group_id")
   eventId         String?    @map("event_id")
+  tableId         String?    @map("table_id")
+  /// 対局記録(Table)内での作成順の連番。表示順の安定ソートキーとして使う(削除後の欠番は詰めない)。
+  hanchanNumber   Int?       @map("hanchan_number")
   playedAt        DateTime   @default(now()) @map("played_at")
   /// Game作成時点のGroupRuleのコピー。後でGroupRuleが変わっても過去Gameの結果は変化しない。
   ruleSnapshot    String     @map("rule_snapshot")
@@ -199,10 +213,53 @@ model Game {
 
   group     Group        @relation(fields: [groupId], references: [id])
   event     Event?       @relation(fields: [eventId], references: [id])
+  table     Table?       @relation(fields: [tableId], references: [id])
   createdBy User         @relation("CreatedGames", fields: [createdByUserId], references: [id])
   results   GameResult[]
 
   @@map("games")
+}
+
+enum TableStatus {
+  open
+  locked
+}
+
+/**
+ * 対局記録。1回の集まりで打った複数半荘をまとめて記録する単位(クォーター単位の一覧の元になる)。
+ * Event(募集)とは独立した並行機能で、募集を経由しない対局記録にも対応する。
+ */
+model Table {
+  id              String      @id @default(cuid())
+  groupId         String      @map("group_id")
+  playedDate      DateTime    @map("played_date")
+  status          TableStatus @default(open)
+  createdByUserId String      @map("created_by_user_id")
+  lockedAt        DateTime?   @map("locked_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  group     Group         @relation(fields: [groupId], references: [id])
+  createdBy User          @relation("CreatedTables", fields: [createdByUserId], references: [id])
+  members   TableMember[]
+  games     Game[]
+
+  @@map("tables")
+}
+
+/** 対局記録の面子(ロスター)。半荘ごとに実際に参加した4人はGameResultの行で決まる。 */
+model TableMember {
+  id        String   @id @default(cuid())
+  tableId   String   @map("table_id")
+  userId    String   @map("user_id")
+  seatOrder Int      @map("seat_order")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  table Table @relation(fields: [tableId], references: [id])
+  user  User  @relation("TableMemberships", fields: [userId], references: [id])
+
+  @@unique([tableId, userId])
+  @@map("table_members")
 }
 
 /**

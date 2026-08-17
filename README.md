@@ -1,4 +1,6 @@
-# あつまれ麻雀部
+# 聴牌
+
+「あと一人で麻雀が打てる。」
 
 社内麻雀コミュニティ向けMVP Webアプリ。「今日麻雀あるんだ、参加してみようかな」が自然に生まれる体験を目指す。
 
@@ -12,17 +14,20 @@ Teamsを置き換えるものではない。役割分担は以下の通り。
 ## 技術構成
 
 - Next.js 16 (App Router) + TypeScript + Tailwind CSS 4
-- Prisma 7 (`@prisma/adapter-better-sqlite3`) + SQLite
+- Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL(Vercel Postgres / Neon)
 - Vitest(コアロジックのユニットテスト + Prisma統合テスト)
-- 認証: 簡易ユーザー選択方式(Cookie)。`src/lib/auth.ts` の `getCurrentUser()` を差し替えれば
-  Microsoft認証など既存の認証基盤へ移行できる構造にしている。
+- 認証: 名前選択 + 4桁PIN方式(Cookie)。他人になりすませないよう、初回ログイン時に
+  本人がPINを設定し、以後は毎回そのPINで検証する(`src/lib/password.ts`, scryptでハッシュ化)。
+  `src/lib/auth.ts` の `getCurrentUser()` を差し替えればMicrosoft認証など既存の
+  認証基盤へ移行できる構造にしている。
 
 ## セットアップ
 
 ```bash
 npm install
 npx prisma migrate dev
-npm run db:seed   # サンプルデータ投入(Group「Timewitch麻雀部」+ 対局履歴 + 募集中の卓)
+npm run db:seed   # サンプルデータ投入(Group「聴牌部」+ 対局履歴 + 募集中の卓)
+                  # シードユーザーの検証用PINは全員 0000
 npm run dev
 ```
 
@@ -34,8 +39,9 @@ npx tsc --noEmit
 npm run lint
 ```
 
-`groupScope.integration.test.ts` は実SQLiteに対する統合テストで、実行時に
-`prisma/test-integration.db` を作成し完了後に自動削除する(開発用DBは汚さない)。
+`groupScope.integration.test.ts` は実Postgres(`DATABASE_URL`)に対する統合テストで、
+実行時に使い捨てスキーマ(`test_integration`)を作成し完了後に自動削除する(開発用の
+`public`スキーマは汚さない)。
 
 ## ディレクトリ構成(抜粋)
 
@@ -130,6 +136,7 @@ User → GroupMembership → Group ├ Event(募集) → Entry(参加希望)
 ## 今後追加候補(今回のMVPでは実装していない)
 
 - 焼き鳥の自動精算・チップ条件(赤ドラ/一発/裏ドラ)の自動検出
+- PINを忘れた場合の再設定フロー(現状はDBから直接`passwordHash`をnullに戻す運用を想定)
 - Teams Bot / 自動投稿、メール招待、Push通知
 - 手牌解析・シャンテン計算・AI打牌支援などの高度なLEARN機能
 - 複数半荘の席割り最適化、細かな卓成立アニメーション

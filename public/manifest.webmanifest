@@ -1,0 +1,21 @@
+{
+  "name": "聴牌",
+  "short_name": "聴牌",
+  "description": "あと一人で麻雀が打てる。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d2b22",
+  "theme_color": "#123a2d",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

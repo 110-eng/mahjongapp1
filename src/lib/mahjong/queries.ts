@@ -75,7 +75,7 @@ export async function listMyEvents(userId: string, groupId: string) {
 /** ランキング集計用にGroup内のconfirmed対局結果のみを取得する(仕様23, 26, 32章) */
 export async function getConfirmedGameResults(groupId: string) {
   const results = await prisma.gameResult.findMany({
-    where: { game: { groupId, status: "confirmed" } },
+    where: { game: { groupId, status: "confirmed" }, user: { isGuest: false } },
     include: { user: true, game: true },
   });
   return results.map((r) => ({

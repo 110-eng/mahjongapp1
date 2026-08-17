@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/auth";
+import { UMA_PRESETS, UMA_CUSTOM_KEY, OKA_PRESETS, CHIP_PRESETS } from "@/lib/mahjong/rulePresets";
 
 function num(formData: FormData, key: string, fallback: number): number {
   const v = formData.get(key);
@@ -14,29 +15,56 @@ function num(formData: FormData, key: string, fallback: number): number {
 export async function updateGroupRule(groupId: string, formData: FormData) {
   await requireOwner(groupId);
 
-  const roundingRule = String(formData.get("roundingRule") ?? "round");
+  const umaPreset = String(formData.get("umaPreset") ?? UMA_CUSTOM_KEY);
+  const uma =
+    umaPreset === UMA_CUSTOM_KEY
+      ? {
+          umaFirst: num(formData, "umaFirst", 20),
+          umaSecond: num(formData, "umaSecond", 10),
+          umaThird: num(formData, "umaThird", -10),
+          umaFourth: num(formData, "umaFourth", -20),
+        }
+      : (() => {
+          const preset = UMA_PRESETS.find((p) => p.key === umaPreset) ?? UMA_PRESETS[2];
+          return {
+            umaFirst: preset.first,
+            umaSecond: preset.second,
+            umaThird: preset.third,
+            umaFourth: preset.fourth,
+          };
+        })();
+
+  const okaPreset = String(formData.get("okaPreset") ?? "5000");
+  const okaMatch = OKA_PRESETS.find((p) => p.key === okaPreset) ?? OKA_PRESETS[0];
+
+  const chipPreset = String(formData.get("chipPreset") ?? "none");
+  const chipMatch = CHIP_PRESETS.find((p) => p.key === chipPreset) ?? CHIP_PRESETS[0];
+
+  const roundingRule = String(formData.get("roundingRule") ?? "asis");
   const tieRule = String(formData.get("tieRule") ?? "seat_order");
+  const penaltyPreset = String(formData.get("penaltyPreset") ?? "off");
+  const resultEntryPermission = String(formData.get("resultEntryPermission") ?? "all_members");
 
   await prisma.groupRule.update({
     where: { groupId },
     data: {
       startingPoints: num(formData, "startingPoints", 25000),
-      returnPoints: num(formData, "returnPoints", 30000),
-      umaFirst: num(formData, "umaFirst", 20),
-      umaSecond: num(formData, "umaSecond", 10),
-      umaThird: num(formData, "umaThird", -10),
-      umaFourth: num(formData, "umaFourth", -20),
-      okaEnabled: formData.get("okaEnabled") === "on",
-      chipEnabled: formData.get("chipEnabled") === "on",
-      chipValue: num(formData, "chipValue", 100),
+      ...uma,
+      okaEnabled: okaMatch.enabled,
+      okaPoints: okaMatch.points || num(formData, "okaPoints", 5000),
+      chipEnabled: chipMatch.enabled,
+      chipValue: chipMatch.value || num(formData, "chipValue", 1000),
       redDoraChipEnabled: formData.get("redDoraChipEnabled") === "on",
       ippatsuChipEnabled: formData.get("ippatsuChipEnabled") === "on",
       uraDoraChipEnabled: formData.get("uraDoraChipEnabled") === "on",
-      bustPenaltyEnabled: formData.get("bustPenaltyEnabled") === "on",
-      bustPenaltyValue: num(formData, "bustPenaltyValue", 0),
+      bustPenaltyEnabled: penaltyPreset === "on",
+      bustPenaltyValue: penaltyPreset === "on" ? num(formData, "bustPenaltyValue", 0) : 0,
       yakitoriEnabled: formData.get("yakitoriEnabled") === "on",
-      roundingRule: ["round", "floor", "ceil"].includes(roundingRule) ? roundingRule : "round",
+      roundingRule: ["asis", "gosha_rokunyu"].includes(roundingRule) ? roundingRule : "asis",
       tieRule: ["seat_order", "shared_rank"].includes(tieRule) ? tieRule : "seat_order",
+      resultEntryPermission: ["all_members", "owner_only"].includes(resultEntryPermission)
+        ? resultEntryPermission
+        : "all_members",
     },
   });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMembership } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getEventDetail, summarizeEntries, getParticipantStats } from "@/lib/mahjong/queries";
 import { computeTableFormation, needsParticipantSelection } from "@/lib/mahjong/tableFormation";
 import { buildParticipationStatusMessage } from "@/lib/mahjong/recommendation";
@@ -19,9 +20,12 @@ export default async function EventDetailPage({
   params: Promise<{ groupId: string; id: string }>;
 }) {
   const { groupId, id } = await params;
-  const { user } = await requireMembership(groupId);
+  const { user, membership } = await requireMembership(groupId);
 
-  const event = await getEventDetail(groupId, id);
+  const [event, groupRule] = await Promise.all([
+    getEventDetail(groupId, id),
+    prisma.groupRule.findUnique({ where: { groupId } }),
+  ]);
   if (!event) notFound();
 
   const { entryCount, validEntries } = summarizeEntries(event.entries);
@@ -37,9 +41,12 @@ export default async function EventDetailPage({
   const isOrganizer = event.organizerUserId === user.id;
   const deadlinePassed = new Date() > event.entryDeadline;
   const requiresAdjustment = needsParticipantSelection(entryCount, event.maxTables);
+  const canRecordResults =
+    membership.role === "owner" || groupRule?.resultEntryPermission !== "owner_only";
   const canRecordGame =
-    event.status === "finalized" ||
-    (event.status === "open" && !requiresAdjustment && entryCount > 0);
+    canRecordResults &&
+    (event.status === "finalized" ||
+      (event.status === "open" && !requiresAdjustment && entryCount > 0));
 
   return (
     <div className="space-y-5">

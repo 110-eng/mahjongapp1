@@ -1,10 +1,15 @@
+import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { calculateGameResults, toRuleSnapshot, type PlayerInput } from "../src/lib/mahjong/scoreEngine";
+import { hashPassword } from "../src/lib/password";
 
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL ?? "file:./dev.db",
-});
+/** シードユーザーの検証用パスワード(本番運用ではユーザーが登録時に自分で設定する) */
+const SEED_PASSWORD_HASH = hashPassword("password1234");
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 // 現在日時を2026-08-15(Q4シーズン中)と仮定してシードデータを組み立てる。
@@ -18,6 +23,8 @@ async function main() {
   console.log("既存データを削除しています...");
   await prisma.gameResult.deleteMany();
   await prisma.game.deleteMany();
+  await prisma.tableMember.deleteMany();
+  await prisma.table.deleteMany();
   await prisma.entry.deleteMany();
   await prisma.event.deleteMany();
   await prisma.groupRule.deleteMany();
@@ -29,19 +36,24 @@ async function main() {
   const [sato, takahashi, watanabe, tanaka, suzuki, ito, yamamoto, nakamura, kobayashi, kato] =
     await Promise.all(
       [
-        ["佐藤", "experienced"],
-        ["高橋", "experienced"],
-        ["渡辺", "experienced"],
-        ["田中", "beginner"],
-        ["鈴木", "beginner"],
-        ["伊藤", "beginner"],
-        ["山本", "inexperienced"],
-        ["中村", "inexperienced"],
-        ["小林", "experienced"],
-        ["加藤", "beginner"],
-      ].map(([name, level]) =>
+        ["佐藤", "sato@example.com", "experienced"],
+        ["高橋", "takahashi@example.com", "experienced"],
+        ["渡辺", "watanabe@example.com", "experienced"],
+        ["田中", "tanaka@example.com", "beginner"],
+        ["鈴木", "suzuki@example.com", "beginner"],
+        ["伊藤", "ito@example.com", "beginner"],
+        ["山本", "yamamoto@example.com", "inexperienced"],
+        ["中村", "nakamura@example.com", "inexperienced"],
+        ["小林", "kobayashi@example.com", "experienced"],
+        ["加藤", "kato@example.com", "beginner"],
+      ].map(([name, email, level]) =>
         prisma.user.create({
-          data: { name, experienceLevel: level as "inexperienced" | "beginner" | "experienced" },
+          data: {
+            name,
+            email,
+            experienceLevel: level as "inexperienced" | "beginner" | "experienced",
+            passwordHash: SEED_PASSWORD_HASH,
+          },
         })
       )
     );
@@ -49,7 +61,7 @@ async function main() {
   console.log("Groupを作成しています...");
   const group = await prisma.group.create({
     data: {
-      name: "Timewitch麻雀部",
+      name: "聴牌部",
       ownerUserId: sato.id,
       seasonStartMonth: 9,
       memberships: {
@@ -69,7 +81,7 @@ async function main() {
       rule: {
         create: {
           chipEnabled: true,
-          chipValue: 100,
+          chipValue: 1000,
         },
       },
     },
@@ -298,7 +310,7 @@ async function main() {
     await prisma.entry.create({ data: { eventId: eventD.id, userId: u.id, status: "entered" } });
   }
 
-  console.log("シード完了");
+  console.log("シード完了(全ユーザーの検証用パスワードは password1234 です)");
   console.log({ groupId: group.id, ownerUserId: sato.id });
 }
 

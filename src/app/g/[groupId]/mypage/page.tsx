@@ -1,4 +1,5 @@
-import { requireMembership } from "@/lib/auth";
+import Link from "next/link";
+import { requireMembership, listMyGroups } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   getParticipantStats,
@@ -17,8 +18,11 @@ export default async function MyPage({
   params: Promise<{ groupId: string }>;
 }) {
   const { groupId } = await params;
-  const { user } = await requireMembership(groupId);
+  const { user, membership } = await requireMembership(groupId);
   const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+  const isOwner = membership.role === "owner";
+  const myGroups = await listMyGroups(user.id);
+  const hasMultipleGroups = myGroups.length > 1;
 
   const stats = await getParticipantStats(user.id, groupId);
   const participationRate =
@@ -44,6 +48,49 @@ export default async function MyPage({
       <div>
         <h1 className="font-serif text-xl font-bold text-ink-900">{user.name}</h1>
         <p className="mt-0.5 text-sm text-ink-600">{EXPERIENCE_LABELS[user.experienceLevel]}</p>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-ink-900">麻雀部の管理</h2>
+        <Card className="divide-y divide-ink-400/10">
+          <Link
+            href={`/g/${groupId}/members`}
+            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+          >
+            <span className="text-ink-900">👥 メンバー・招待リンク</span>
+            <span className="text-ink-400">›</span>
+          </Link>
+          <Link
+            href={`/g/${groupId}/ranking?view=records`}
+            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+          >
+            <span className="text-ink-900">📝 対局記録をつける</span>
+            <span className="text-ink-400">›</span>
+          </Link>
+          {isOwner && (
+            <Link
+              href={`/g/${groupId}/settings`}
+              className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+            >
+              <span>
+                <span className="block text-ink-900">⚙️ 麻雀ルールを設定する</span>
+                <span className="mt-0.5 block text-xs text-ink-400">
+                  持ち点・ウマ・オカ・チップなどはここから設定できます
+                </span>
+              </span>
+              <span className="text-ink-400">›</span>
+            </Link>
+          )}
+          {hasMultipleGroups && (
+            <Link
+              href="/groups"
+              className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+            >
+              <span className="text-ink-900">🔄 麻雀部を切り替える</span>
+              <span className="text-ink-400">›</span>
+            </Link>
+          )}
+        </Card>
       </div>
 
       <div>

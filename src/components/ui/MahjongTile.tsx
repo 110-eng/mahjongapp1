@@ -1,11 +1,17 @@
-import { tileLabel, tileColorClass, type TileCode, type TileGroup } from "@/lib/mahjong/tiles";
+import Image from "next/image";
+import { tileLabel, tileImageSrc, type TileCode, type TileGroup } from "@/lib/mahjong/tiles";
 
 export function MahjongTile({ code }: { code: TileCode }) {
   return (
-    <span
-      className={`inline-flex h-9 w-8 shrink-0 items-center justify-center rounded-md border border-gold-500/40 bg-washi-100 text-xs font-bold shadow-sm ${tileColorClass(code)}`}
-    >
-      {tileLabel(code)}
+    <span className="inline-flex h-9 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gold-500/40 bg-washi-100 shadow-sm">
+      <Image
+        src={tileImageSrc(code)}
+        alt={tileLabel(code)}
+        width={28}
+        height={36}
+        className="h-full w-full object-contain"
+        unoptimized
+      />
     </span>
   );
 }

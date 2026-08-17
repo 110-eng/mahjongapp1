@@ -18,22 +18,23 @@ describe("calculateGameResults - basic (no ties)", () => {
     expect(byRank.map((r) => r.rank)).toEqual([1, 2, 3, 4]);
     expect(byRank[0].userId).toBe("u0");
 
-    // rawScorePoint = (finalScore - 30000) / 1000
-    expect(byRank[0].rawScorePoint).toBeCloseTo(11.2);
-    expect(byRank[1].rawScorePoint).toBeCloseTo(-1.3);
-    expect(byRank[2].rawScorePoint).toBeCloseTo(-8.7);
-    expect(byRank[3].rawScorePoint).toBeCloseTo(-21.2);
+    // rawScorePoint = (finalScore - 25000) / 1000
+    expect(byRank[0].rawScorePoint).toBeCloseTo(16.2);
+    expect(byRank[1].rawScorePoint).toBeCloseTo(3.7);
+    expect(byRank[2].rawScorePoint).toBeCloseTo(-3.7);
+    expect(byRank[3].rawScorePoint).toBeCloseTo(-16.2);
 
     // uma: +20/+10/-10/-20
     expect(byRank[0].umaPoint).toBe(20);
     expect(byRank[3].umaPoint).toBe(-20);
 
-    // oka = (30000-25000)*4/1000 = 20, all to rank1
-    expect(byRank[0].okaPoint).toBe(20);
+    // oka = 5000点 = 5.0pt、すべて1位へ
+    expect(byRank[0].okaPoint).toBe(5);
     expect(byRank[1].okaPoint).toBe(0);
 
     // total = raw + uma + oka (no chip/penalty)
-    expect(byRank[0].totalRankingPoint).toBeCloseTo(11.2 + 20 + 20);
+    expect(byRank[0].totalRankingPoint).toBeCloseTo(16.2 + 20 + 5);
+    expect(byRank[3].totalRankingPoint).toBeCloseTo(-16.2 - 20);
   });
 
   it("4人でない場合はエラー", () => {
@@ -88,9 +89,9 @@ describe("calculateGameResults - tie handling", () => {
     const results = calculateGameResults(players([30000, 30000, 25000, 15000]), rule);
     const first = results.filter((r) => r.rank === 1);
     expect(first).toHaveLength(2);
-    // oka total = 20, split between 2 players = 10 each
-    expect(first[0].okaPoint).toBe(10);
-    expect(first[1].okaPoint).toBe(10);
+    // oka total = 5.0pt, split between 2 players = 2.5 each
+    expect(first[0].okaPoint).toBe(2.5);
+    expect(first[1].okaPoint).toBe(2.5);
   });
 });
 
@@ -106,14 +107,14 @@ describe("calculateGameResults - chips / penalty / oka toggle", () => {
   });
 
   it("chipEnabled=trueの場合チップ枚数×chipValueが反映される(1000点=1.0pt換算)", () => {
-    const rule: RuleSnapshot = { ...DEFAULT_RULE_SNAPSHOT, chipEnabled: true, chipValue: 100 };
+    const rule: RuleSnapshot = { ...DEFAULT_RULE_SNAPSHOT, chipEnabled: true, chipValue: 1000 };
     const input = players([30000, 25000, 25000, 20000]).map((p, i) => ({
       ...p,
       chipCount: i === 0 ? 3 : 0,
     }));
     const results = calculateGameResults(input, rule);
-    // 3枚 × 100点 / 1000 = 0.3pt
-    expect(results.find((r) => r.userId === "u0")!.chipPoint).toBeCloseTo(0.3);
+    // 3枚 × 1000点 / 1000 = 3.0pt
+    expect(results.find((r) => r.userId === "u0")!.chipPoint).toBeCloseTo(3);
   });
 
   it("okaEnabled=falseの場合オカは加算されない", () => {
@@ -137,20 +138,25 @@ describe("calculateGameResults - chips / penalty / oka toggle", () => {
 });
 
 describe("calculateGameResults - rounding rule", () => {
-  it("roundingRuleによって端数の丸め方が変わる", () => {
-    // finalScore=25650 -> (25650-30000)/1000 = -4.35pt
-    const base = players([25650, 30000, 25000, 19350]);
+  it("asis: 小数点第一位までそのまま保持する", () => {
+    const rule: RuleSnapshot = { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "asis" };
+    // (41200-25000)/1000 = 16.2
+    const results = calculateGameResults(players([41200, 28700, 21300, 8800]), rule);
+    expect(results.find((r) => r.userId === "u0")!.rawScorePoint).toBeCloseTo(16.2);
+  });
 
-    const rounded = calculateGameResults(base, { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "round" });
-    const floored = calculateGameResults(base, { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "floor" });
-    const ceiled = calculateGameResults(base, { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "ceil" });
+  it("gosha_rokunyu: 下3桁が600未満は切り捨てて整数ptにする", () => {
+    const rule: RuleSnapshot = { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "gosha_rokunyu" };
+    // diff = 41500-25000 = 16500 -> 下3桁500 -> 600未満なので切り捨て -> 16000 -> 16.0pt
+    const results = calculateGameResults(players([41500, 28000, 22000, 8500]), rule);
+    expect(results.find((r) => r.userId === "u0")!.rawScorePoint).toBe(16);
+  });
 
-    const r = rounded.find((x) => x.userId === "u0")!.rawScorePoint;
-    const f = floored.find((x) => x.userId === "u0")!.rawScorePoint;
-    const c = ceiled.find((x) => x.userId === "u0")!.rawScorePoint;
-
-    expect(f).toBeLessThanOrEqual(r);
-    expect(r).toBeLessThanOrEqual(c);
+  it("gosha_rokunyu: 下3桁が600以上は切り上げて整数ptにする", () => {
+    const rule: RuleSnapshot = { ...DEFAULT_RULE_SNAPSHOT, roundingRule: "gosha_rokunyu" };
+    // diff = 41600-25000 = 16600 -> 下3桁600 -> 600以上なので切り上げ -> 17000 -> 17.0pt
+    const results = calculateGameResults(players([41600, 28000, 21900, 8500]), rule);
+    expect(results.find((r) => r.userId === "u0")!.rawScorePoint).toBe(17);
   });
 });
 

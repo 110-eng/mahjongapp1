@@ -10,17 +10,18 @@
  * 正式ルールが判明した場合でもUI/データモデルを変えずに対応できるようにしている。
  */
 
-export type RoundingRule = "round" | "floor" | "ceil";
+export type RoundingRule = "asis" | "gosha_rokunyu";
 export type TieRule = "seat_order" | "shared_rank";
 
 export type RuleSnapshot = {
   startingPoints: number;
-  returnPoints: number;
   umaFirst: number;
   umaSecond: number;
   umaThird: number;
   umaFourth: number;
   okaEnabled: boolean;
+  /** 1位に加算される点数(素点換算前, 例: 5000点)。okaEnabled=falseなら無視される。 */
+  okaPoints: number;
   chipEnabled: boolean;
   chipValue: number;
   redDoraChipEnabled: boolean;
@@ -35,21 +36,21 @@ export type RuleSnapshot = {
 
 export const DEFAULT_RULE_SNAPSHOT: RuleSnapshot = {
   startingPoints: 25000,
-  returnPoints: 30000,
   umaFirst: 20,
   umaSecond: 10,
   umaThird: -10,
   umaFourth: -20,
   okaEnabled: true,
+  okaPoints: 5000,
   chipEnabled: false,
-  chipValue: 100,
+  chipValue: 1000,
   redDoraChipEnabled: false,
   ippatsuChipEnabled: false,
   uraDoraChipEnabled: false,
   bustPenaltyEnabled: false,
   bustPenaltyValue: 0,
   yakitoriEnabled: false,
-  roundingRule: "round",
+  roundingRule: "asis",
   tieRule: "seat_order",
 };
 
@@ -75,12 +76,20 @@ export type PlayerResult = {
   totalRankingPoint: number;
 };
 
-/** value(単位:pt)を小数第1位で丸める。roundingRuleが素点/チップ/ペナルティ換算全体に適用される。 */
-function roundToTenth(value: number, rule: RoundingRule): number {
-  const scaled = value * 10;
-  const rounded =
-    rule === "floor" ? Math.floor(scaled) : rule === "ceil" ? Math.ceil(scaled) : Math.round(scaled);
-  return rounded / 10;
+/**
+ * 生の点数差(1000点=1.0pt換算前の素点)をptに変換する。
+ * - "asis": 小数点第一位までそのまま(実運用ではスコアは100点単位のため誤差は出ない)
+ * - "gosha_rokunyu": 五捨六入で整数pt化する(下3桁が600未満切り捨て/600以上切り上げ)
+ */
+function convertPointsToPt(rawPoints: number, rule: RoundingRule): number {
+  if (rule === "gosha_rokunyu") {
+    const sign = rawPoints < 0 ? -1 : 1;
+    const abs = Math.abs(rawPoints);
+    const remainder = abs % 1000;
+    const rounded = remainder >= 600 ? abs - remainder + 1000 : abs - remainder;
+    return (sign * rounded) / 1000;
+  }
+  return Math.round((rawPoints / 1000) * 10) / 10;
 }
 
 /**
@@ -105,9 +114,7 @@ export function calculateGameResults(
   });
 
   const uma = [rule.umaFirst, rule.umaSecond, rule.umaThird, rule.umaFourth];
-  const okaPool = rule.okaEnabled
-    ? ((rule.returnPoints - rule.startingPoints) * players.length) / 1000
-    : 0;
+  const okaPool = rule.okaEnabled ? convertPointsToPt(rule.okaPoints, rule.roundingRule) : 0;
 
   // 同点グループを決定する。seat_orderの場合はsort時点で全順位が確定済みなので単独グループ。
   const groups: number[][] = [];
@@ -133,17 +140,14 @@ export function calculateGameResults(
 
     for (const idx of group) {
       const p = ordered[idx];
-      const rawScorePoint = roundToTenth(
-        (p.finalScore - rule.returnPoints) / 1000,
-        rule.roundingRule
-      );
+      const rawScorePoint = convertPointsToPt(p.finalScore - rule.startingPoints, rule.roundingRule);
       const chipCount = p.chipCount ?? 0;
       const chipPoint = rule.chipEnabled
-        ? roundToTenth((chipCount * rule.chipValue) / 1000, rule.roundingRule)
+        ? convertPointsToPt(chipCount * rule.chipValue, rule.roundingRule)
         : 0;
       const penaltyPoint =
         rule.bustPenaltyEnabled && p.finalScore < 0
-          ? -roundToTenth(rule.bustPenaltyValue / 1000, rule.roundingRule)
+          ? -convertPointsToPt(rule.bustPenaltyValue, rule.roundingRule)
           : 0;
       const totalRankingPoint = rawScorePoint + umaShare + okaShare + chipPoint + penaltyPoint;
 
@@ -166,52 +170,6 @@ export function calculateGameResults(
   return results;
 }
 
-/** PrismaのGroupRuleモデルから、Game作成時にコピーするRuleSnapshotを組み立てる(仕様18章) */
-export function toRuleSnapshot(rule: {
-  startingPoints: number;
-  returnPoints: number;
-  umaFirst: number;
-  umaSecond: number;
-  umaThird: number;
-  umaFourth: number;
-  okaEnabled: boolean;
-  chipEnabled: boolean;
-  chipValue: number;
-  redDoraChipEnabled: boolean;
-  ippatsuChipEnabled: boolean;
-  uraDoraChipEnabled: boolean;
-  bustPenaltyEnabled: boolean;
-  bustPenaltyValue: number;
-  yakitoriEnabled: boolean;
-  roundingRule: string;
-  tieRule: string;
-}): RuleSnapshot {
-  return {
-    startingPoints: rule.startingPoints,
-    returnPoints: rule.returnPoints,
-    umaFirst: rule.umaFirst,
-    umaSecond: rule.umaSecond,
-    umaThird: rule.umaThird,
-    umaFourth: rule.umaFourth,
-    okaEnabled: rule.okaEnabled,
-    chipEnabled: rule.chipEnabled,
-    chipValue: rule.chipValue,
-    redDoraChipEnabled: rule.redDoraChipEnabled,
-    ippatsuChipEnabled: rule.ippatsuChipEnabled,
-    uraDoraChipEnabled: rule.uraDoraChipEnabled,
-    bustPenaltyEnabled: rule.bustPenaltyEnabled,
-    bustPenaltyValue: rule.bustPenaltyValue,
-    yakitoriEnabled: rule.yakitoriEnabled,
-    roundingRule: (rule.roundingRule as RoundingRule) ?? "round",
-    tieRule: (rule.tieRule as TieRule) ?? "seat_order",
-  };
-}
-
-/** Game.ruleSnapshot(JSON文字列)をパースする */
-export function parseRuleSnapshot(json: string): RuleSnapshot {
-  return JSON.parse(json) as RuleSnapshot;
-}
-
 /** 入力バリデーション用: 持ち点合計のずれとチップ合計のずれを返す(強制ブロックはしない/仕様21章) */
 export function validatePlayerInputs(
   players: { finalScore: number; chipCount?: number }[],
@@ -231,4 +189,50 @@ export function validatePlayerInputs(
     chipTotal,
     isChipBalanced: !rule.chipEnabled || chipTotal === 0,
   };
+}
+
+/** PrismaのGroupRuleモデルから、Game作成時にコピーするRuleSnapshotを組み立てる(仕様18章) */
+export function toRuleSnapshot(rule: {
+  startingPoints: number;
+  umaFirst: number;
+  umaSecond: number;
+  umaThird: number;
+  umaFourth: number;
+  okaEnabled: boolean;
+  okaPoints: number;
+  chipEnabled: boolean;
+  chipValue: number;
+  redDoraChipEnabled: boolean;
+  ippatsuChipEnabled: boolean;
+  uraDoraChipEnabled: boolean;
+  bustPenaltyEnabled: boolean;
+  bustPenaltyValue: number;
+  yakitoriEnabled: boolean;
+  roundingRule: string;
+  tieRule: string;
+}): RuleSnapshot {
+  return {
+    startingPoints: rule.startingPoints,
+    umaFirst: rule.umaFirst,
+    umaSecond: rule.umaSecond,
+    umaThird: rule.umaThird,
+    umaFourth: rule.umaFourth,
+    okaEnabled: rule.okaEnabled,
+    okaPoints: rule.okaPoints,
+    chipEnabled: rule.chipEnabled,
+    chipValue: rule.chipValue,
+    redDoraChipEnabled: rule.redDoraChipEnabled,
+    ippatsuChipEnabled: rule.ippatsuChipEnabled,
+    uraDoraChipEnabled: rule.uraDoraChipEnabled,
+    bustPenaltyEnabled: rule.bustPenaltyEnabled,
+    bustPenaltyValue: rule.bustPenaltyValue,
+    yakitoriEnabled: rule.yakitoriEnabled,
+    roundingRule: (rule.roundingRule as RoundingRule) ?? "asis",
+    tieRule: (rule.tieRule as TieRule) ?? "seat_order",
+  };
+}
+
+/** Game.ruleSnapshot(JSON文字列)をパースする */
+export function parseRuleSnapshot(json: string): RuleSnapshot {
+  return JSON.parse(json) as RuleSnapshot;
 }

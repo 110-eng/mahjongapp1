@@ -4,9 +4,9 @@ import { prisma } from "@/lib/prisma";
 import type { User, GroupMembership } from "@/generated/prisma/client";
 
 /**
- * 簡易ユーザー選択方式の認証層。
+ * メールアドレス+パスワード方式の認証層。
  *
- * 既存の認証基盤(Microsoft認証等)が導入され次第、この関数の中身だけを
+ * 将来的に別の認証基盤に差し替える場合でも、この関数の中身だけを
  * 差し替えれば済むように、アプリの他の部分は getCurrentUser() /
  * requireMembership() 経由でのみユーザー・Groupを参照する。
  */

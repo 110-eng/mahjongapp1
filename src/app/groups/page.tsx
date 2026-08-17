@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getCurrentUser, listMyGroups } from "@/lib/auth";
 import { logout } from "@/app/login/actions";
@@ -19,10 +20,10 @@ export default async function GroupsPage() {
     <div className="min-h-dvh bg-board-900 px-4 py-10">
       <div className="mx-auto w-full max-w-sm space-y-6">
         <div className="text-center text-washi-100">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-gold-400/60 bg-washi-100 text-3xl shadow-sm">
-            🀄
+          <span className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-gold-400/60 shadow-sm">
+            <Image src="/logo.png" alt="聴牌" width={56} height={56} className="h-full w-full object-cover" />
           </span>
-          <h1 className="font-serif mt-3 text-xl font-bold tracking-wide">あつまれ麻雀部</h1>
+          <h1 className="font-serif mt-3 text-xl font-bold tracking-wide">聴牌</h1>
           <p className="mt-1 text-sm text-washi-200/70">
             {user.name} さんが参加している麻雀部
           </p>

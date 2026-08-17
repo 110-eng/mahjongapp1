@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { CURRENT_USER_COOKIE, PENDING_INVITE_COOKIE } from "@/lib/auth";
+import { hashPassword, verifyPassword, isValidEmail, isValidPassword } from "@/lib/password";
 
 const SESSION_COOKIE_OPTS = {
   httpOnly: true,
@@ -23,38 +24,74 @@ async function resolveDestination(): Promise<string> {
   return "/groups";
 }
 
-export async function selectUser(userId: string) {
-  if (!userId) return;
-
+async function loginAs(userId: string) {
   const cookieStore = await cookies();
   cookieStore.set(CURRENT_USER_COOKIE, userId, SESSION_COOKIE_OPTS);
   redirect(await resolveDestination());
 }
 
-export async function createUser(formData: FormData) {
-  const name = formData.get("name");
+export type LoginFormState = { error?: string };
+
+export async function login(
+  _prevState: LoginFormState,
+  formData: FormData
+): Promise<LoginFormState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  // メール未登録とパスワード不一致を区別しない(アカウント在否の推測を防ぐ)
+  if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    return { error: "メールアドレスまたはパスワードが違います" };
+  }
+
+  await loginAs(user.id);
+  return {};
+}
+
+export type RegisterFormState = { error?: string };
+
+export async function register(
+  _prevState: RegisterFormState,
+  formData: FormData
+): Promise<RegisterFormState> {
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const experienceLevel = formData.get("experienceLevel");
-  if (typeof name !== "string" || !name.trim()) return;
+  const password = String(formData.get("password") ?? "");
+  const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
+
+  if (!name) return { error: "お名前を入力してください" };
+  if (!isValidEmail(email)) return { error: "メールアドレスの形式が正しくありません" };
   if (
     typeof experienceLevel !== "string" ||
     !["inexperienced", "beginner", "experienced"].includes(experienceLevel)
   ) {
-    return;
+    return { error: "経験レベルを選択してください" };
+  }
+  if (!isValidPassword(password)) {
+    return { error: "パスワードは8文字以上で入力してください" };
+  }
+  if (password !== passwordConfirm) {
+    return { error: "確認用パスワードが一致しません" };
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return { error: "このメールアドレスは既に登録されています" };
   }
 
   const user = await prisma.user.create({
     data: {
-      name: name.trim(),
-      experienceLevel: experienceLevel as
-        | "inexperienced"
-        | "beginner"
-        | "experienced",
+      name,
+      email,
+      experienceLevel: experienceLevel as "inexperienced" | "beginner" | "experienced",
+      passwordHash: hashPassword(password),
     },
   });
 
-  const cookieStore = await cookies();
-  cookieStore.set(CURRENT_USER_COOKIE, user.id, SESSION_COOKIE_OPTS);
-  redirect(await resolveDestination());
+  await loginAs(user.id);
+  return {};
 }
 
 export async function logout() {

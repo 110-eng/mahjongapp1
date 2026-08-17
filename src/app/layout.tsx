@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
 import "./globals.css";
 
@@ -15,8 +15,17 @@ const notoSerifJP = Noto_Serif_JP({
 });
 
 export const metadata: Metadata = {
-  title: "あつまれ麻雀部",
-  description: "Timewitch社内麻雀サークルの卓立て・参加・ランキングアプリ",
+  title: "聴牌",
+  description: "あと一人で麻雀が打てる。",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    title: "聴牌",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#123a2d",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

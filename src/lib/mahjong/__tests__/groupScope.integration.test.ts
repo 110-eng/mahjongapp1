@@ -1,8 +1,21 @@
 /**
  * Group分離・権限・ランキング集計・JOIN連携の統合テスト(仕様49章)。
  *
- * 実際のSQLiteに対してPrismaでクエリを実行する統合テスト。
- * 開発用DB(dev.db)は汚さず、テスト専用のDBファイルを都度作り直す。
+ * 実際のPostgresに対してPrismaでクエリを実行する統合テスト。
+ * 開発用DBの本来のデータベースは汚さず、テスト専用の使い捨てデータベースを
+ * 都度作り直す。
+ *
+ * 分離の実装メモ: 当初は同一データベース内のスキーマ分離
+ * (`search_path` / 接続URLの"schema"パラメータ)を試したが、
+ * @prisma/adapter-pg 経由だとNeon上で確実に効かず(pg.Poolが内部で
+ * 都度張り直す物理コネクションの一部にしか反映されない事象を実測で確認)、
+ * 実データベース(public)に書き込みが漏れる事故が起きた。データベース名は
+ * 接続のTCP/認証レベルで確定するため揺らぎようがなく、これなら確実に分離できる。
+ *
+ * マイグレーションは `prisma migrate deploy` を使わず、既存の migration.sql を
+ * 直接テスト用データベースへ流し込む。Neon環境では`prisma migrate`が使う
+ * postgres advisory lockの取得がハングすることがあり(Neonのサーバーレス
+ * compute特性による既知の相性問題)、使い捨てDBの構築には不要なため。
  *
  * 注意: requireMembership/requireOwner(src/lib/auth.ts)はnext/headersのcookies()に
  * 依存しておりNext.jsのリクエストスコープ外(vitest)では呼び出せないため、
@@ -11,14 +24,47 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any -- 動的importするテスト対象モジュールの型を都度定義するより、
    統合テストとしての可読性を優先する */
-import { beforeAll, afterAll, describe, it, expect } from "vitest";
-import { execSync } from "node:child_process";
+import "dotenv/config";
+import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
+import { Client, Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client";
 import fs from "node:fs";
 import path from "node:path";
 
-const TEST_DB_RELATIVE = "prisma/test-integration.db";
-const TEST_DB_ABSOLUTE = path.resolve(process.cwd(), TEST_DB_RELATIVE);
-const TEST_DATABASE_URL = `file:./${TEST_DB_RELATIVE}`;
+// 実PostgreSQL(Neon)へのネットワーク往復が発生するため、ローカルSQLite前提の
+// デフォルトタイムアウト(5秒)では複数クエリを行うテストが不安定になる。
+vi.setConfig({ testTimeout: 20000 });
+
+const TEST_DB_NAME = "test_integration_db";
+
+/** prisma/migrations/配下の全migration.sqlを適用順に連結して読み込む */
+function readAllMigrationSql(): string {
+  const migrationsDir = path.resolve(process.cwd(), "prisma/migrations");
+  const dirs = fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .sort();
+  return dirs
+    .map((dir) => fs.readFileSync(path.join(migrationsDir, dir, "migration.sql"), "utf-8"))
+    .join("\n");
+}
+
+/** 接続文字列のデータベース名部分だけ差し替える */
+function withDatabase(databaseUrl: string, dbName: string): string {
+  const url = new URL(databaseUrl);
+  url.pathname = `/${dbName}`;
+  return url.toString();
+}
+
+async function dropTestDatabase(admin: Client) {
+  await admin.query(
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+    [TEST_DB_NAME]
+  );
+  await admin.query(`DROP DATABASE IF EXISTS "${TEST_DB_NAME}"`);
+}
 
 let prisma: any;
 let queries: any;
@@ -26,23 +72,32 @@ let authLib: any;
 let rankingLib: any;
 let seasonLib: any;
 let scoreEngineLib: any;
-
-function cleanupDbFiles() {
-  for (const suffix of ["", "-journal", "-wal", "-shm"]) {
-    const f = TEST_DB_ABSOLUTE + suffix;
-    if (fs.existsSync(f)) fs.rmSync(f);
-  }
-}
+let testPool: Pool | undefined;
+let baseUrlForCleanup: string | undefined;
 
 beforeAll(async () => {
-  cleanupDbFiles();
-  execSync("npx prisma migrate deploy", {
-    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-    stdio: "pipe",
-  });
-  process.env.DATABASE_URL = TEST_DATABASE_URL;
+  const baseUrl = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+  if (!baseUrl) throw new Error("DATABASE_URL is not set (required for integration tests)");
+  baseUrlForCleanup = baseUrl;
+  const testDatabaseUrl = withDatabase(baseUrl, TEST_DB_NAME);
 
-  ({ prisma } = await import("@/lib/prisma"));
+  const admin = new Client({ connectionString: baseUrl });
+  await admin.connect();
+  await dropTestDatabase(admin);
+  await admin.query(`CREATE DATABASE "${TEST_DB_NAME}"`);
+  await admin.end();
+
+  const migrationClient = new Client({ connectionString: testDatabaseUrl });
+  await migrationClient.connect();
+  await migrationClient.query(readAllMigrationSql());
+  await migrationClient.end();
+
+  testPool = new Pool({ connectionString: testDatabaseUrl });
+  const adapter = new PrismaPg(testPool);
+  prisma = new PrismaClient({ adapter });
+
+  vi.doMock("@/lib/prisma", () => ({ prisma }));
+
   queries = await import("@/lib/mahjong/queries");
   authLib = await import("@/lib/auth");
   rankingLib = await import("@/lib/mahjong/ranking");
@@ -52,7 +107,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma?.$disconnect();
-  cleanupDbFiles();
+  await testPool?.end();
+  if (baseUrlForCleanup) {
+    const admin = new Client({ connectionString: baseUrlForCleanup });
+    await admin.connect();
+    await dropTestDatabase(admin);
+    await admin.end();
+  }
 });
 
 async function createUser(name: string) {

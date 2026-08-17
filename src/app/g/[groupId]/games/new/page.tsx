@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toRuleSnapshot } from "@/lib/mahjong/scoreEngine";
@@ -14,10 +14,13 @@ export default async function NewGamePage({
   searchParams: Promise<{ eventId?: string }>;
 }) {
   const { groupId } = await params;
-  await requireMembership(groupId);
+  const { membership } = await requireMembership(groupId);
   const { eventId } = await searchParams;
 
   const rule = await prisma.groupRule.findUniqueOrThrow({ where: { groupId } });
+  if (rule.resultEntryPermission === "owner_only" && membership.role !== "owner") {
+    redirect(eventId ? `/g/${groupId}/events/${eventId}` : `/g/${groupId}`);
+  }
 
   let candidates: { userId: string; userName: string }[];
   let backHref = `/g/${groupId}`;

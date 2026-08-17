@@ -35,10 +35,13 @@ export async function createGame(
   eventId: string | null,
   players: PlayerFormInput[]
 ) {
-  const { user } = await requireMembership(groupId);
+  const { user, membership } = await requireMembership(groupId);
   if (players.length !== 4) throw new Error("4人分の入力が必要です");
 
   const groupRule = await prisma.groupRule.findUniqueOrThrow({ where: { groupId } });
+  if (groupRule.resultEntryPermission === "owner_only" && membership.role !== "owner") {
+    throw new Error("この麻雀部では管理者のみが対局結果を記録できます");
+  }
   const ruleSnapshot = toRuleSnapshot(groupRule);
 
   const inputs: PlayerInput[] = players.map((p, i) => ({
